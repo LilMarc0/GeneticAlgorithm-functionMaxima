@@ -7,16 +7,24 @@ NRPOP = 100
 KEEPRATIO = 16
 DISCARDRATIO = 10
 MAXDEV =  -9999999
-MUTATION_PROB = 0.2
+MUTATION_PROB = 0.15
+
+def find_nearest(array, value):
+    array = np.asarray(array)
+    return (np.abs(array - value)).argmin()
 
 class individ:
     def __init__(self, crom, decoded=0, fit=0):
         self.crom = crom
         self.fit = fit
         self.decoded = int(crom, 2)
+        self.norm_fitness = 0
 
     def __repr__(self):
         return str(self.decoded)
+
+    def __add__(self, other):
+        return self.fit + other.fit
 
 class population:
     def __init__(self, nr = NRPOP, kr = KEEPRATIO, dr = DISCARDRATIO, mp = MUTATION_PROB):
@@ -47,30 +55,47 @@ class population:
             pop.append(individ(self.encode(c), c))
         return pop
 
-    def crossover(self):
-        new_pop, rem_pop = self.pop[:self.kr], self.pop[self.kr:]
-        while len(new_pop) != NRPOP:
-            for i, ind in enumerate(rem_pop):
-                crom = ind.crom
-                other = randint(0, len(self.pop)-1)
-                other1 = randint(0, len(self.pop) - 1)
-                crom1 = self.pop[other].crom
-                crom2 = self.pop[other1].crom
-                Ncrom = crom[:len(crom) // 2] + crom1[len(crom1) // 2:]
-                Ncrom1 = crom[:len(crom) // 2] + crom2[len(crom2) // 2:]
+    def normalize(self, pop):
+        p = [x.fit for x in pop]
+        s1 = sum(p)
+        s2 = 0
+        for ind in pop:
+            s2 += ind.fit/s1
+            ind.norm_fitness += s2
+        print([x.norm_fitness for x in pop])
+        return pop
 
-                new_pop.append(individ(Ncrom))
-                new_pop.append(individ(Ncrom1))
-                #print(len(new_pop))
-                del rem_pop[i]
-        print(new_pop)
+    def crossover(self):
+        self.pop = self.normalize(self.pop)
+
+        new_pop, rem_pop = self.pop[:self.kr], self.pop[self.kr:]
+        for ind in new_pop:
+            ind.fit = 0
+            ind.norm_fitness = 0
+        fv = [x.fit for x in rem_pop]
+        while len(new_pop) != NRPOP:
+
+            idx1 = find_nearest(fv, random())
+            idx2 = find_nearest(fv, random())
+            ind1 = rem_pop[idx1]
+            ind2 = rem_pop[idx2]
+            crom1 = ind1.crom
+            crom2 = ind2.crom
+
+            Ncrom = crom1[:len(crom1) // 2] + crom2[len(crom2) // 2:]
+
+            new_pop.append(individ(Ncrom))
+            #print(len(new_pop))
         return new_pop
 
     def fitness(self):
         f = 0
         for ind in self.pop:
-            ind.fit = abs(1-ind.decoded)
-            f += ind.fit
+            if abs(1-ind.decoded) != 0:
+                ind.fit = 1/abs(1-ind.decoded)
+            else:
+                ind.fit = 1
+            f += 1/ind.fit
         print('Overall fitness: ' + str(f))
         self.pop = sorted(self.pop, key=lambda x: x.fit)
 
@@ -104,6 +129,7 @@ class GA:
             for gen in range(self.gen_per_epoch):
                 print('EPOCH{}\nGEN{}:'.format(e,g))
                 self.pop.fitness()
+                print(self.pop.pop)
                 self.pop.pop = self.pop.crossover()
                 self.pop.point_mutation()
                 os.system('cls')
